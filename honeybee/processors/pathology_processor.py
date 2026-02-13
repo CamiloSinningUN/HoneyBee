@@ -61,7 +61,7 @@ class PathologyProcessor:
         self,
         path: Union[str, Path],
         tile_size: int = 512,
-        max_patches: int = 500,
+        magnification: Optional[float] = None,
         visualize: bool = False,
         verbose: bool = False,
     ):
@@ -71,7 +71,9 @@ class PathologyProcessor:
         Args:
             path: Path to WSI file (.svs, .tiff, etc.)
             tile_size: Size of tiles for patch extraction
-            max_patches: Maximum number of patches to extract
+            magnification: Desired magnification level (e.g., 20.0 for 20x, 10.0 for 10x).
+                          If None, uses the highest resolution (level 0).
+                          Common values: 40.0, 20.0, 10.0, 5.0, 2.5, 1.25
             visualize: Whether to create visualizations
             verbose: Whether to print loading information
 
@@ -80,14 +82,14 @@ class PathologyProcessor:
 
         Example:
             >>> processor = PathologyProcessor()
-            >>> wsi = processor.load_wsi("slide.svs", tile_size=256)
+            >>> wsi = processor.load_wsi("slide.svs", tile_size=256, magnification=20.0)
         """
         from ..loaders.Slide.slide import Slide
 
         slide = Slide(
             slide_image_path=str(path),
             tile_size=tile_size,
-            max_patches=max_patches,
+            magnification=magnification,
             visualize=visualize,
             verbose=verbose,
         )

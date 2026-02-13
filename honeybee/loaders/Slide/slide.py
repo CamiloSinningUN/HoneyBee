@@ -35,7 +35,7 @@ class Slide:
         slide_image_path,
         tile_size=512,
         tileOverlap=0,
-        max_patches=500,
+        magnification=20.0,
         visualize=False,
         tissue_detector=None,
         path_to_store_visualization="./visualizations",
@@ -53,8 +53,8 @@ class Slide:
         self.slideFileName = Path(slide_image_path).stem
         self.slideFilePath = Path(slide_image_path)
 
-        # Select the level with the most suitable number of patches
-        self.selected_level = self._select_level(max_patches)
+        # Select the level based on the desired magnification
+        self.selected_level = self._select_level(magnification)
 
         # Read the slide at the selected level
         self.slide = self.img.read_region(location=[0, 0], level=self.selected_level)
@@ -77,25 +77,54 @@ class Slide:
         if visualize:
             self.visualize()
 
-    def _select_level(self, max_patches):
+    def _select_level(self, magnification=None):
         resolutions = self.img.resolutions
         level_dimensions = resolutions["level_dimensions"]
         level_count = resolutions["level_count"]
+        level_downsamples = resolutions.get("level_downsamples", [1.0] * level_count)
+        
         if self.verbose:
             print(f"Resolutions: {resolutions}")
 
+        # Get base magnification from metadata if available
+        # Try to get objective power from metadata
+        try:
+            base_magnification = float(self.img.metadata.get("openslide.objective-power", 40))
+        except (AttributeError, KeyError, ValueError):
+            # Default to 40x if not available
+            base_magnification = 40.0
+            if self.verbose:
+                print(f"Could not determine base magnification from metadata, assuming {base_magnification}x")
+
+        # Find the level that best matches the requested magnification
         selected_level = 0
+        min_diff = float('inf')
+        
         for level in range(level_count):
             width, height = level_dimensions[level]
+            downsample = level_downsamples[level]
+            level_magnification = base_magnification / downsample
+            
             numTilesInX = width // self.tileSize
             numTilesInY = height // self.tileSize
+            
             if self.verbose:
                 print(
-                    f"Level {level}: {numTilesInX}x{numTilesInY} ({numTilesInX * numTilesInY}) \t Resolution: {width}x{height}"
+                    f"Level {level}: {numTilesInX}x{numTilesInY} ({numTilesInX * numTilesInY}) patches | "
+                    f"Resolution: {width}x{height} | Magnification: {level_magnification:.2f}x | "
+                    f"Downsample: {downsample:.2f}"
                 )
-            if numTilesInX * numTilesInY <= max_patches:
+            
+            # Find the level with magnification closest to requested
+            diff = abs(level_magnification - magnification)
+            if diff < min_diff:
+                min_diff = diff
                 selected_level = level
-                break
+
+        if self.verbose:
+            downsample = level_downsamples[selected_level]
+            actual_magnification = base_magnification / downsample
+            print(f"Selected level {selected_level} with magnification {actual_magnification:.2f}x (requested: {magnification}x)")
 
         return selected_level
 
